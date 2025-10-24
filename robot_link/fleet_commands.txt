@@ -1,0 +1,5 @@
+move_robot_[number]_forward_at_[number]_m/s_for_[number]_seconds
+move_robot_[number]_backward_at_[number]_m/s_for_[number]_seconds
+turn_robot_[number]_right_at_[number]_rad/s_for_[number]_seconds
+turn_robot_[number]_left_at_[number]_rad/s_for_[number]_seconds
+stop
