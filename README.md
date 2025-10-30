@@ -133,91 +133,96 @@ The `robot_link` directory contains optional bridges that rely on `robot_link/ro
 
 Update any bespoke integrations to include the robot ID in their request paths if they bypass `robot_api.py`.
 
-To get started with omnilink bridge: 
+## 🔗 OmniLink Bridge Setup (MQTT → Simulator Control)
 
-Configure and Start the MQTT Broker (Mosquitto)
+This section explains how to connect the **OmniLink Agent UI** (web UI) with the **Husky Fleet Simulator** by using **MQTT**. The OmniLink UI communicates over **WebSockets**, so we must configure Mosquitto to support `protocol websockets` on port **9001**.
 
-The OmniLink Agent UI requires the WebSockets protocol on port 9001. Standard Mosquitto defaults to TCP on port 1883, which causes connection failures.
+---
 
-    Stop the Default Service: Ensure no background instance is blocking the port.
-    Bash
+### 1) Configure & Start the Mosquitto Broker
 
+The default Mosquitto broker listens on `1883` (TCP only), which **will not work** with the OmniLink UI.  
+We must enable **WebSockets** on port **9001**.
+
+#### Stop any running Mosquitto instance:
+```bash
 sudo systemctl stop mosquitto.service
-
-Enable WebSockets: Edit the main Mosquitto configuration file.
-Bash
-
+```
+Edit the Mosquitto configuration:
+```bash
 sudo nano /etc/mosquitto/mosquitto.conf
-
-Add/Verify Configuration: Ensure the following lines are present to allow the required protocol and port, and to prevent the rc=5 (Not Authorised) connection error.
-Code snippet
-
-allow_anonymous true # CRITICAL: Allows connection from the local bridge client
+```
+Add (or verify) these lines:
+```bash
+allow_anonymous true      # Required for local UI connections (avoid rc=5 auth errors)
 listener 9001
-protocol websockets # CRITICAL: Required to match the OmniLink UI setting (ws://...)
+protocol websockets       # Enables ws:// communication required by the OmniLink UI
+```
 
-Start the Broker Service:
-Bash
+Note: Using allow_anonymous true is acceptable for local development.
+For production use, configure authentication.
 
-    sudo systemctl start mosquitto.service
+Restart the broker:
 
-    (Terminal 2): The broker is now listening correctly.
+```bash
+sudo systemctl start mosquitto.service
+```
 
-3. Launch the OmniLink Bridge Script
+✅ Verification:
 
-The Python script receives MQTT messages and translates them into Flask API calls.
+Run in another terminal:
+```bash
+sudo netstat -tulpn | grep 9001
+```
+You should see Mosquitto listening on port 9001 (websockets).
 
-    Set Environment Variables: These tell the bridge script which robot API to talk to.
-    Bash
+2) Launch the OmniLink Bridge
 
-export HUSKY_API_URL=http://127.0.0.1:5000
-export HUSKY_ROBOT_ID=husky_0 # Default target robot
+This script receives messages from the OmniLink UI via MQTT and converts them into REST API calls to control the robots.
 
-Navigate to Bridge Directory:
-Bash
-
+```bash
+export HUSKY_API_URL=http://127.0.0.1:5000     # Address of the simulator REST API
+```
+Run the bridge:
+```bash
 cd robot_link/
+python link_mqtt.py
+```
+Expected output:
+```bash
+[OmniLinkMQTT] Connected to localhost:9001 (transport=websockets)
+```
+Leave this terminal running.
+It listens for control messages.
 
-Run the Bridge:
-Bash
+3) Configure the OmniLink Agent UI
 
-    python link_mqtt.py
+Open the OmniLink Web UI → Connection Settings
 
-    (Terminal 3): A successful connection will show: [OmniLinkMQTT] Connected localhost:9001 (transport=websockets). This terminal now remains open and idle, waiting for commands.
+Setting	Value	Important Note
+Broker / WebSocket URL	ws://localhost:9001	Must use ws:// and port 9001
+Command Topic	olink/commands	Must match the topic used in the bridge script
 
-Phase 2: OmniLink Agent Configuration
+| Action                | Template Format                                   |
+| --------------------- | ------------------------------------------------- |
+| Drive (linear motion) | `drive_<robot_id>_<direction>_<speed>_<duration>` |
+| Turn (rotation)       | `turn_<robot_id>_<direction>_<rate>_<duration>`   |
+| Stop robot            | `stop_<robot_id>`                                 |
+| Reset entire fleet    | `reset_fleet`                                     |
 
-The final step is to configure the web UI (Agent) to publish commands to your running local environment.
+5) End-to-End Test
 
-1. Configure Connection Settings
+In OmniLink UI (voice or text), try:
 
-In the OmniLink UI, navigate to the Connection Settings and verify the following fields to match your broker setup:
-Setting	Value	CRITICAL NOTE
-BROKER/WEBSOCKET URL	ws://localhost:9001	Must use the ws:// protocol and port 9001.
-COMMAND TOPIC	olink/commands	This must match the topic the bridge script is subscribing to.
+"Husky zero, move forward at zero point five for three seconds."
 
-2. Define Command Templates (Crucial Syntax Fix)
+You should observe:
 
-The AI Agent must generate commands that exactly match the simplified placeholders expected by the Python bridge script. Avoid using full units like meters_per_second.
-Action	Recommended Template to Enter in OmniLink UI
-Drive Command	drive_[robot_id]_[direction]_[speed]_[duration]
-Turn Command	turn_[robot_id]_[direction]_[rate]_[duration]
-Stop Command	stop_[robot_id]
-Reset Fleet	reset_fleet
+UI displays: drive_husky_0_forward_0.5_3
 
-3. Test the End-to-End Control Loop
+Bridge terminal logs: command matched and translated
 
-    In the OmniLink UI (voice or text), issue a simplified command that matches the template:
-
-        "Husky zero, move forward at zero point five, for three."
-
-    Verification: Observe the command flow:
-
-        UI Status: Last Command shows the simple string (e.g., drive_husky_0_forward_0.5_3).
-
-        Bridge Terminal (T3): Logs the incoming command string and the successful translation (no "did not match" error).
-
-        Simulation (T1/GUI): The husky_0 robot moves forward in the PyBullet window.
+Simulator window: husky_0 moves forward smoothly
 
 ## Troubleshooting
 
