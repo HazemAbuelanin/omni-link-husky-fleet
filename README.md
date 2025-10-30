@@ -13,10 +13,22 @@ This project provides a lightweight Python application for driving a fleet of si
 
 ## Requirements
 
-- Python 3.9+
-- [PyBullet](https://pybullet.org)
-- [Flask](https://flask.palletsprojects.com/)
+## Python Version
+Python 3.10 or Python 3.11
 
+## Python Packages
+Install the following Python libraries:
+
+```bash
+pip install flask pybullet paho-mqtt
+```
+
+System Services
+
+Install Mosquitto MQTT broker:
+```bash
+sudo apt install mosquitto mosquitto-clients
+```
 Install the required packages with pip:
 
 ```bash
